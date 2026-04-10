@@ -1,13 +1,21 @@
-#![no_std]
-
-#[cfg(not(feature = "no-entrypoint"))]
-mod entrypoint;
-
-#[cfg(feature = "std")]
-extern crate std;
-
-pub mod errors;
+pub mod constants;
+pub mod error;
 pub mod instructions;
-pub mod states;
+pub mod state;
 
-pinocchio_pubkey::declare_id!("H3APeT7QPmk342yatA6M1WXw8WweXfoCs3vwbdoddogD");
+use anchor_lang::prelude::*;
+
+pub use constants::*;
+pub use instructions::*;
+pub use state::*;
+
+declare_id!("4hhDWN9o9dpS5Cj3K8RD6Vrvo1YNP5mQTfiHPX3jC6Ku");
+
+#[program]
+pub mod gambit_program {
+    use super::*;
+
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        initialize::handler(ctx)
+    }
+}
