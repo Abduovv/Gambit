@@ -22,10 +22,17 @@ pub struct CancelSession<'info> {
     )]
     pub session: Account<'info, Session>,
 
+    #[account(
+        mut,
+        seeds = [ESCROW_SEED, session.key().as_ref()],
+        bump = escrow.bump,
+    )]
+    pub escrow: Account<'info, Escrow>,
+
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<CancelSession>) -> Result<()> {
+pub fn handler<'a>(ctx: Context<'a, CancelSession<'a>>) -> Result<()> {
     let session = &ctx.accounts.session;
 
     // Can cancel from any non-terminal state
@@ -80,7 +87,7 @@ pub fn handler(ctx: Context<CancelSession>) -> Result<()> {
 
             if let Some(wallet_info) = wallet_info {
                 let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.system_program.to_account_info(),
+                    ctx.accounts.system_program.key(),
                     Transfer {
                         from: escrow_info,
                         to: wallet_info.clone(),

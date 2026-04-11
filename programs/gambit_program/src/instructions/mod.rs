@@ -1,5 +1,6 @@
 pub mod initialize_session;
 pub mod join_session;
+pub mod lock_session;
 pub mod confirm_bill;
 pub mod request_reveal;
 pub mod consume_randomness;
@@ -9,6 +10,7 @@ pub mod cancel_session;
 
 pub use initialize_session::*;
 pub use join_session::*;
+pub use lock_session::*;
 pub use confirm_bill::*;
 pub use request_reveal::*;
 pub use consume_randomness::*;

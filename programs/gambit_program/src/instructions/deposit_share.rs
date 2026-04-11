@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::state::{Session, Participant, Escrow};
+use crate::state::{Escrow, Participant, Session};
 
 #[derive(Accounts)]
 pub struct DepositShare<'info> {
@@ -44,7 +44,7 @@ pub fn handler(ctx: Context<DepositShare>) -> Result<()> {
     let participant = &ctx.accounts.participant;
 
     require!(session.state == STATE_PAYING, ErrorCode::NotPaying);
-    require!(!participant.amount_paid > 0, ErrorCode::AlreadyPaid);
+    require!(participant.amount_paid == 0, ErrorCode::AlreadyPaid);
 
     // Check deadline hasn't passed
     let clock = Clock::get()?;
@@ -58,7 +58,7 @@ pub fn handler(ctx: Context<DepositShare>) -> Result<()> {
 
     // Transfer exact amount from participant wallet to escrow PDA
     let cpi_ctx = CpiContext::new(
-        ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.system_program.key(),
         Transfer {
             from: ctx.accounts.participant_wallet.to_account_info(),
             to: ctx.accounts.escrow.to_account_info(),

@@ -2,17 +2,16 @@ pub mod constants;
 pub mod error;
 pub mod instructions;
 pub mod state;
+pub mod vrf;
 
 use anchor_lang::prelude::*;
-use ephemeral_rollups_sdk::anchor::ephemeral;
 
 pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("4hhDWN9o9dpS5Cj3K8RD6Vrvo1YNP5mQTfiHPX3jC6Ku");
+declare_id!("FEmkNeM8Ws2mRpXPLhQmpbXoGUpr3qM7f8d7hJGh41Ez");
 
-#[ephemeral]
 #[program]
 pub mod gambit_program {
     use super::*;
@@ -84,7 +83,7 @@ pub mod gambit_program {
     ///
     /// remaining_accounts: interleaved [ParticipantPDA, WalletAccount] pairs
     /// for each participant who paid. Unpaid participants only need their PDA.
-    pub fn cancel_session(ctx: Context<CancelSession>) -> Result<()> {
+    pub fn cancel_session<'a>(ctx: Context<'a, CancelSession<'a>>) -> Result<()> {
         cancel_session::handler(ctx)
     }
 }
