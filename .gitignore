@@ -43,7 +43,7 @@ app-example
 /ios
 /android
 
-
-
-gambit_program/target
-gambit_program/Cargo.lock
+# Anchor / Solana build artifacts
+/target
+**/target
+**/Cargo.lock
