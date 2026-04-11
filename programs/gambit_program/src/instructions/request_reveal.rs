@@ -1,12 +1,12 @@
 use anchor_lang::prelude::*;
-use ephemeral_vrf_sdk::anchor::vrf;
-use ephemeral_vrf_sdk::instructions::{create_request_randomness_ix, RequestRandomnessParams};
-use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 use crate::constants::*;
 use crate::error::ErrorCode;
 use crate::state::Session;
+use crate::vrf::{
+    self, create_request_randomness_ix, RequestRandomnessParams,
+    SerializableAccountMeta, VrfProgram, SLOT_HASHES_SYSVAR,
+};
 
-#[vrf]
 #[derive(Accounts)]
 pub struct RequestReveal<'info> {
     #[account(mut)]
@@ -20,32 +20,39 @@ pub struct RequestReveal<'info> {
     )]
     pub session: Account<'info, Session>,
 
-    /// CHECK: VRF oracle queue — validated by VRF SDK
-    #[account(
-        mut,
-        address = ephemeral_vrf_sdk::consts::DEFAULT_QUEUE,
-    )]
-    pub oracle_queue: AccountInfo<'info>,
+    /// CHECK: VRF oracle queue — validated by address constraint
+    #[account(mut, address = vrf::DEFAULT_QUEUE)]
+    pub oracle_queue: UncheckedAccount<'info>,
+
+    /// CHECK: Program identity PDA for VRF signing
+    #[account(seeds = [b"identity"], bump)]
+    pub program_identity: UncheckedAccount<'info>,
+
+    pub vrf_program: Program<'info, VrfProgram>,
+
+    /// CHECK: Slot hashes sysvar — validated by address constraint
+    #[account(address = SLOT_HASHES_SYSVAR)]
+    pub slot_hashes: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<RequestReveal>) -> Result<()> {
-    let session = &mut ctx.accounts.session;
+    let session = &ctx.accounts.session;
     require!(session.state == STATE_CONFIRMING, ErrorCode::NotConfirming);
 
-    // client_seed: first byte of sha256(session_id || unix_ts)
-    // Adds entropy so even same session_id at different times gets different output
+    // Capture values before mutable borrow
+    let session_key = ctx.accounts.session.key();
+
+    // client_seed: XOR fold of session_id + timestamp for entropy
     let clock = Clock::get()?;
     let ts_bytes = clock.unix_timestamp.to_le_bytes();
     let mut seed_input = [0u8; 14]; // 6 + 8
     seed_input[..6].copy_from_slice(&session.session_id);
     seed_input[6..].copy_from_slice(&ts_bytes);
-
-    // Simple hash: XOR fold into one byte as the client_seed
     let client_seed: u8 = seed_input.iter().fold(0u8, |acc, &b| acc ^ b);
 
-    // Build the VRF request. The oracle will call consume_randomness (0x05)
-    // on our program once randomness is ready.
-    // We pass the session account so consume_randomness can load it.
+    // Build the VRF request instruction
     let ix = create_request_randomness_ix(RequestRandomnessParams {
         payer: ctx.accounts.host.key(),
         oracle_queue: ctx.accounts.oracle_queue.key(),
@@ -54,17 +61,25 @@ pub fn handler(ctx: Context<RequestReveal>) -> Result<()> {
         caller_seed: [client_seed; 32],
         accounts_metas: Some(vec![
             SerializableAccountMeta {
-                pubkey: ctx.accounts.session.key(),
+                pubkey: session_key,
                 is_signer: false,
                 is_writable: true,
             },
         ]),
-        ..Default::default()
     });
 
-    ctx.accounts
-        .invoke_signed_vrf(&ctx.accounts.host.to_account_info(), &ix)?;
+    // Invoke the VRF program with PDA signer
+    vrf::invoke_signed_vrf(
+        &ctx.accounts.host.to_account_info(),
+        &ctx.accounts.program_identity,
+        &ctx.accounts.oracle_queue,
+        &ctx.accounts.slot_hashes,
+        &ix,
+        &crate::ID,
+    )?;
 
+    // Advance state
+    let session = &mut ctx.accounts.session;
     session.state = STATE_REVEALING;
 
     Ok(())

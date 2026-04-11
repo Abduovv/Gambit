@@ -6,8 +6,9 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace)]
 pub struct Session {
     pub session_id: [u8; 6],       // 6 - short code shown in UI
-    pub recipient: Pubkey,         // 32
-    pub total_amount: u64,       // 8 - total bill in lamports
+    pub host: Pubkey,              // 32
+    pub total_lamports: u64,       // 8 - total bill in lamports
+    pub max_participants: u8,      // 1 - cap set by host (2–20)
     pub participant_count: u8,     // 1
     pub confirmed_count: u8,       // 1 - how many confirmed the bill
     pub paid_count: u8,            // 1 - how many paid on-chain
@@ -16,6 +17,16 @@ pub struct Session {
     pub deadline_ts: i64,          // 8 - payment deadline (set at PAYING state)
     pub created_ts: i64,           // 8 - for session expiry logic
     pub vrf_seed: [u8; 32],        // 32 - stored after reveal for auditability
+    pub bump: u8,                  // 1
+}
+
+/// Escrow account — holds collected SOL until settlement or cancellation.
+/// PDA seeds: [ESCROW_SEED, session.key()]
+#[account]
+#[derive(InitSpace)]
+pub struct Escrow {
+    pub session: Pubkey,           // 32 - back-reference for has_one checks
+    pub total_collected: u64,      // 8 - sum of all deposits so far
     pub bump: u8,                  // 1
 }
 

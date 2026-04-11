@@ -14,7 +14,7 @@ pub struct ConsumeRandomness<'info> {
     /// Must equal VRF_PROGRAM_IDENTITY — ensures this callback
     /// can only be invoked by the real VRF oracle, never spoofed.
     #[account(
-        address = ephemeral_vrf_sdk::consts::VRF_PROGRAM_IDENTITY,
+        address = crate::vrf::VRF_PROGRAM_IDENTITY,
     )]
     pub vrf_program_identity: Signer<'info>,
 

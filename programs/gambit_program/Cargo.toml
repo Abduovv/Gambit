@@ -20,10 +20,8 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
-anchor-spl = { version = "0.32.1" }
-ephemeral-rollups-sdk = { version = "0.6.5", features = ["anchor"] }
-ephemeral-vrf-sdk = { version = "0.2.1", features = ["anchor"] }
+anchor-lang = { version = "1.0.0", features = ["init-if-needed"] }
+borsh = "1"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

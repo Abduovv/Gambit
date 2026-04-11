@@ -1,8 +1,5 @@
 use anchor_lang::prelude::*;
 
-pub const USDT_MINT: Pubkey = Pubkey::from_str("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB").unwrap();
-
-
 #[constant]
 pub const SESSION_SEED: &[u8] = b"session";
 

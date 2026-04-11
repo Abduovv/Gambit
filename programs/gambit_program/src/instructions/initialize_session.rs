@@ -1,8 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{transfer_checked, Mint, TokenAccount, Token},
-};
 use crate::constants::*;
 use crate::error::ErrorCode;
 use crate::state::{Session, Escrow};
@@ -21,28 +17,23 @@ pub struct InitializeSession<'info> {
         bump,
     )]
     pub session: Account<'info, Session>,
-    
-    #[account(
-        address = USDT_MINT
-    )]
-    pub usdt_mint: Account<'info, Mint>,
 
     #[account(
         init,
         payer = host,
-        associated_token::mint = usdt_mint,
+        space = 8 + Escrow::INIT_SPACE,
+        seeds = [ESCROW_SEED, session.key().as_ref()],
+        bump,
     )]
-    pub vault: Account<'info, TokenAccount>,
-    
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Program<'info, Token>,
+    pub escrow: Account<'info, Escrow>,
+
     pub system_program: Program<'info, System>,
 }
 
 pub fn handler(
     ctx: Context<InitializeSession>,
     session_id: [u8; 6],
-    total_amount: u64,
+    total_lamports: u64,
     fairness_alpha: u8,      // 1–10
     max_participants: u8,    // 2–20
 ) -> Result<()> {
@@ -51,14 +42,15 @@ pub fn handler(
         max_participants >= 2 && max_participants <= MAX_PARTICIPANTS,
         ErrorCode::NotEnoughParticipants
     );
-    require!(total_amount > 0, ErrorCode::WrongAmount);
+    require!(total_lamports > 0, ErrorCode::WrongAmount);
 
     let clock = Clock::get()?;
 
     ctx.accounts.session.set_inner(Session {
         session_id,
-        recipient: ctx.accounts.recipient.key(),
-        total_amount,
+        host: ctx.accounts.host.key(),
+        total_lamports,
+        max_participants,
         participant_count: 0,
         confirmed_count: 0,
         paid_count: 0,
@@ -68,6 +60,12 @@ pub fn handler(
         created_ts: clock.unix_timestamp,
         vrf_seed: [0u8; 32],
         bump: ctx.bumps.session,
+    });
+
+    ctx.accounts.escrow.set_inner(Escrow {
+        session: ctx.accounts.session.key(),
+        total_collected: 0,
+        bump: ctx.bumps.escrow,
     });
 
     Ok(())
