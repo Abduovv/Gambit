@@ -1,8 +1,8 @@
-use anchor_lang::prelude::*;
-use anchor_lang::system_program::{transfer, Transfer};
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::state::{Escrow, Participant, Session};
+use crate::state::{Participant, Session};
+use anchor_lang::prelude::*;
+use anchor_spl::token::{transfer as spl_transfer, Token, TokenAccount, Transfer as SplTransfer};
 
 #[derive(Accounts)]
 pub struct DepositShare<'info> {
@@ -28,15 +28,23 @@ pub struct DepositShare<'info> {
     )]
     pub participant: Account<'info, Participant>,
 
+    /// The token account owned by the Session PDA that receives USDT.
+    /// Validated by pubkey stored in Session — prevents rogue vault attack.
     #[account(
         mut,
-        seeds = [ESCROW_SEED, session.key().as_ref()],
-        bump = escrow.bump,
-        has_one = session @ ErrorCode::InvalidParticipantPda,
+        constraint = usdt_vault.key() == session.usdt_vault @ ErrorCode::InvalidVault,
     )]
-    pub escrow: Account<'info, Escrow>,
+    pub usdt_vault: Account<'info, TokenAccount>,
 
-    pub system_program: Program<'info, System>,
+    /// Participant's USDT token account (source of funds)
+    #[account(
+        mut,
+        constraint = participant_token_account.owner == participant_wallet.key() @ ErrorCode::InvalidTokenAccount,
+        constraint = participant_token_account.mint == usdt_vault.mint @ ErrorCode::MintMismatch,
+    )]
+    pub participant_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
 }
 
 pub fn handler(ctx: Context<DepositShare>) -> Result<()> {
@@ -56,27 +64,27 @@ pub fn handler(ctx: Context<DepositShare>) -> Result<()> {
     let amount_due = participant.amount_due;
     require!(amount_due > 0, ErrorCode::WrongAmount);
 
-    // Transfer exact amount from participant wallet to escrow PDA
+    // Transfer exact amount from participant's USDT to vault token account
     let cpi_ctx = CpiContext::new(
-        ctx.accounts.system_program.key(),
-        Transfer {
-            from: ctx.accounts.participant_wallet.to_account_info(),
-            to: ctx.accounts.escrow.to_account_info(),
+        anchor_spl::token::ID,
+        SplTransfer {
+            from: ctx.accounts.participant_token_account.to_account_info(),
+            to: ctx.accounts.usdt_vault.to_account_info(),
+            authority: ctx.accounts.participant_wallet.to_account_info(),
         },
     );
-    transfer(cpi_ctx, amount_due)?;
+    spl_transfer(cpi_ctx, amount_due)?;
 
     // Update accounting — do this after transfer to avoid partial-state bugs
     let participant = &mut ctx.accounts.participant;
     participant.amount_paid = amount_due;
 
-    let escrow = &mut ctx.accounts.escrow;
-    escrow.total_collected = escrow
+    let session = &mut ctx.accounts.session;
+    session.total_collected = session
         .total_collected
         .checked_add(amount_due)
         .ok_or(ErrorCode::Overflow)?;
 
-    let session = &mut ctx.accounts.session;
     session.paid_count = session
         .paid_count
         .checked_add(1)

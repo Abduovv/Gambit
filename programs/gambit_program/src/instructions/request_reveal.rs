@@ -1,11 +1,11 @@
-use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::error::ErrorCode;
 use crate::state::Session;
 use crate::vrf::{
-    self, create_request_randomness_ix, RequestRandomnessParams,
-    SerializableAccountMeta, VrfProgram, SLOT_HASHES_SYSVAR,
+    self, create_request_randomness_ix, RequestRandomnessParams, SerializableAccountMeta,
+    VrfProgram, SLOT_HASHES_SYSVAR,
 };
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct RequestReveal<'info> {
@@ -59,13 +59,11 @@ pub fn handler(ctx: Context<RequestReveal>) -> Result<()> {
         callback_program_id: crate::ID,
         callback_discriminator: crate::instruction::ConsumeRandomness::DISCRIMINATOR.to_vec(),
         caller_seed: [client_seed; 32],
-        accounts_metas: Some(vec![
-            SerializableAccountMeta {
-                pubkey: session_key,
-                is_signer: false,
-                is_writable: true,
-            },
-        ]),
+        accounts_metas: Some(vec![SerializableAccountMeta {
+            pubkey: session_key,
+            is_signer: false,
+            is_writable: true,
+        }]),
     });
 
     // Invoke the VRF program with PDA signer

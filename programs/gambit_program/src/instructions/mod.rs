@@ -1,19 +1,19 @@
+pub mod cancel_session;
+pub mod confirm_bill;
+pub mod consume_randomness;
+pub mod deposit_share;
 pub mod initialize_session;
 pub mod join_session;
 pub mod lock_session;
-pub mod confirm_bill;
 pub mod request_reveal;
-pub mod consume_randomness;
-pub mod deposit_share;
 pub mod settle;
-pub mod cancel_session;
 
+pub use cancel_session::*;
+pub use confirm_bill::*;
+pub use consume_randomness::*;
+pub use deposit_share::*;
 pub use initialize_session::*;
 pub use join_session::*;
 pub use lock_session::*;
-pub use confirm_bill::*;
 pub use request_reveal::*;
-pub use consume_randomness::*;
-pub use deposit_share::*;
 pub use settle::*;
-pub use cancel_session::*;

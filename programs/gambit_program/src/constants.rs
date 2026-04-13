@@ -7,13 +7,10 @@ pub const SESSION_SEED: &[u8] = b"session";
 pub const PARTICIPANT_SEED: &[u8] = b"participant";
 
 #[constant]
-pub const ESCROW_SEED: &[u8] = b"escrow";
-
-#[constant]
 pub const RECEIPT_SEED: &[u8] = b"receipt";
 
 pub const MAX_PARTICIPANTS: u8 = 20;
-pub const SESSION_EXPIRY_SECS: i64 = 900;   // 15 min: host must start or it expires
+pub const SESSION_EXPIRY_SECS: i64 = 900; // 15 min: host must start or it expires
 pub const PAYMENT_DEADLINE_SECS: i64 = 1800; // 30 min from reveal to pay
 
 // Session states stored as u8

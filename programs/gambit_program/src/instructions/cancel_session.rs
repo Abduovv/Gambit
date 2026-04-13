@@ -1,14 +1,17 @@
-use anchor_lang::prelude::*;
-use anchor_lang::system_program::{transfer, Transfer};
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::state::{Session, Escrow, Participant};
+use crate::state::{Participant, Session};
+use anchor_lang::prelude::*;
+use anchor_spl::token::{
+    close_account as spl_close_account, transfer as spl_transfer, CloseAccount as SplCloseAccount,
+    Token, TokenAccount, Transfer as SplTransfer,
+};
 
 /// Host can cancel from any non-terminal state.
 /// All deposits returned. All accounts closed. Rent returned to host.
 ///
-/// remaining_accounts: all Participant PDAs for this session.
-/// If no deposits yet, they can be empty accounts — close is safe either way.
+/// remaining_accounts: all Participant PDAs for this session,
+/// plus their USDT token accounts for those who paid (to refund to).
 #[derive(Accounts)]
 pub struct CancelSession<'info> {
     #[account(mut)]
@@ -22,14 +25,16 @@ pub struct CancelSession<'info> {
     )]
     pub session: Account<'info, Session>,
 
+    /// The token account owned by the Session PDA holding collected USDT.
+    /// Validated by pubkey stored in Session — prevents rogue vault attack.
     #[account(
         mut,
-        seeds = [ESCROW_SEED, session.key().as_ref()],
-        bump = escrow.bump,
+        constraint = usdt_vault.key() == session.usdt_vault @ ErrorCode::InvalidVault,
     )]
-    pub escrow: Account<'info, Escrow>,
+    pub usdt_vault: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 pub fn handler<'a>(ctx: Context<'a, CancelSession<'a>>) -> Result<()> {
@@ -41,7 +46,14 @@ pub fn handler<'a>(ctx: Context<'a, CancelSession<'a>>) -> Result<()> {
         ErrorCode::AlreadyTerminal
     );
 
-    let session_key = ctx.accounts.session.key();
+    let host_key = ctx.accounts.host.key();
+    let session_seeds = &[
+        SESSION_SEED,
+        &session.session_id,
+        host_key.as_ref(),
+        &[session.bump],
+    ];
+    let signer = &[&session_seeds[..]];
 
     // Refund each participant who paid — iterate remaining_accounts
     for acc_info in ctx.remaining_accounts.iter() {
@@ -53,6 +65,7 @@ pub fn handler<'a>(ctx: Context<'a, CancelSession<'a>>) -> Result<()> {
         let participant = participant.unwrap();
 
         // Validate PDA
+        let session_key = ctx.accounts.session.key();
         let expected_seeds = &[
             PARTICIPANT_SEED,
             session_key.as_ref(),
@@ -63,38 +76,32 @@ pub fn handler<'a>(ctx: Context<'a, CancelSession<'a>>) -> Result<()> {
             continue; // skip unrecognized accounts silently
         }
 
-        // If participant paid, refund them from escrow
+        // If participant paid, refund them from vault
         if participant.amount_paid > 0 {
-            let escrow_seeds = &[
-                ESCROW_SEED,
-                session_key.as_ref(),
-                &[ctx.accounts.escrow.bump],
-            ];
-            let signer = &[&escrow_seeds[..]];
-
-            // Find participant wallet account from remaining_accounts
-            // The participant's wallet is stored in participant.wallet.
-            // We need the AccountInfo for that wallet — it must be passed
-            // in remaining_accounts too (after all participant PDAs).
-            // Convention: pass all participant PDAs first, then their wallet AccountInfos.
-            // For MVP: do a lamport-move directly since we have the escrow.
             let refund = participant.amount_paid;
-            let escrow_info = ctx.accounts.escrow.to_account_info();
 
-            // Find the wallet AccountInfo from remaining_accounts
-            let wallet_info = ctx.remaining_accounts.iter()
-                .find(|a| a.key() == participant.wallet);
+            // Find participant's USDT token account from remaining_accounts
+            // Validate mint matches vault mint
+            let participant_token_info = ctx.remaining_accounts.iter().find(|a| {
+                let token_acc = Account::<TokenAccount>::try_from(a);
+                if let Ok(token) = token_acc {
+                    token.owner == participant.wallet && token.mint == ctx.accounts.usdt_vault.mint
+                } else {
+                    false
+                }
+            });
 
-            if let Some(wallet_info) = wallet_info {
+            if let Some(participant_token_info) = participant_token_info {
                 let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.system_program.key(),
-                    Transfer {
-                        from: escrow_info,
-                        to: wallet_info.clone(),
+                    anchor_spl::token::ID,
+                    SplTransfer {
+                        from: ctx.accounts.usdt_vault.to_account_info(),
+                        to: participant_token_info.clone(),
+                        authority: ctx.accounts.session.to_account_info(),
                     },
                     signer,
                 );
-                transfer(cpi_ctx, refund)?;
+                spl_transfer(cpi_ctx, refund)?;
             }
         }
 
@@ -109,22 +116,19 @@ pub fn handler<'a>(ctx: Context<'a, CancelSession<'a>>) -> Result<()> {
             .ok_or(ErrorCode::Overflow)?;
     }
 
-    // Close escrow (any remaining rent) → host
-    let escrow_info = ctx.accounts.escrow.to_account_info();
-    let remaining_escrow = escrow_info.lamports();
-    if remaining_escrow > 0 {
-        **escrow_info.lamports.borrow_mut() = 0;
-        **ctx.accounts.host.lamports.borrow_mut() = ctx
-            .accounts
-            .host
-            .lamports()
-            .checked_add(remaining_escrow)
-            .ok_or(ErrorCode::Overflow)?;
-    }
+    // Close vault token account → rent returns to host
+    let close_vault_ctx = CpiContext::new_with_signer(
+        anchor_spl::token::ID,
+        SplCloseAccount {
+            account: ctx.accounts.usdt_vault.to_account_info(),
+            destination: ctx.accounts.host.to_account_info(),
+            authority: ctx.accounts.session.to_account_info(),
+        },
+        signer,
+    );
+    spl_close_account(close_vault_ctx)?;
 
     // Mark cancelled on session before closing it
-    // (The account will be zeroed, so the state write is for event emission
-    // and any indexers that read before close.)
     let session = &mut ctx.accounts.session;
     session.state = STATE_CANCELLED;
 

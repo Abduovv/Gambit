@@ -5,20 +5,16 @@ use borsh::BorshSerialize;
 // ── MagicBlock VRF program constants ──────────────────────────────────
 
 /// VRF oracle program ID (MagicBlock)
-pub const VRF_PROGRAM_ID: Pubkey =
-    pubkey!("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");
+pub const VRF_PROGRAM_ID: Pubkey = pubkey!("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");
 
 /// Default oracle queue for randomness requests
-pub const DEFAULT_QUEUE: Pubkey =
-    pubkey!("Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh");
+pub const DEFAULT_QUEUE: Pubkey = pubkey!("Cuj97ggrhhidhbu39TijNVqE74xvKJ69gDervRUXAxGh");
 
 /// VRF oracle identity PDA (used to verify callback signer)
-pub const VRF_PROGRAM_IDENTITY: Pubkey =
-    pubkey!("9irBy75QS2BN81FUgXuHcjqceJJRuc9oDkAe8TKVvvAw");
+pub const VRF_PROGRAM_IDENTITY: Pubkey = pubkey!("9irBy75QS2BN81FUgXuHcjqceJJRuc9oDkAe8TKVvvAw");
 
 /// Slot hashes sysvar address
-pub const SLOT_HASHES_SYSVAR: Pubkey =
-    pubkey!("SysvarS1otHashes111111111111111111111111111");
+pub const SLOT_HASHES_SYSVAR: Pubkey = pubkey!("SysvarS1otHashes111111111111111111111111111");
 
 /// Seed for the program identity PDA
 pub const IDENTITY: &[u8] = b"identity";
@@ -80,10 +76,7 @@ pub fn create_request_randomness_ix(
                 solana_program::system_program::ID,
                 false,
             ),
-            solana_program::instruction::AccountMeta::new_readonly(
-                SLOT_HASHES_SYSVAR,
-                false,
-            ),
+            solana_program::instruction::AccountMeta::new_readonly(SLOT_HASHES_SYSVAR, false),
         ],
         data: RequestRandomness {
             caller_seed: params.caller_seed,

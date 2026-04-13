@@ -1,7 +1,7 @@
-use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::error::ErrorCode;
 use crate::state::Session;
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct LockSession<'info> {

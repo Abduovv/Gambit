@@ -1,7 +1,7 @@
-use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::state::{Session, Participant};
+use crate::state::{Participant, Session};
+use anchor_lang::prelude::*;
 
 /// Called exclusively by the MagicBlock VRF oracle — never by a user.
 /// Receives 32 bytes of verifiable randomness, runs the distribution
@@ -40,7 +40,7 @@ pub fn handler(ctx: Context<ConsumeRandomness>, randomness: [u8; 32]) -> Result<
     session.vrf_seed = randomness;
 
     // Run distribution algorithm (integer only, no floats)
-    let shares = compute_shares(&randomness, n, session.total_lamports, session.fairness_alpha)?;
+    let shares = compute_shares(&randomness, n, session.total_usdt, session.fairness_alpha)?;
 
     // Write amount_due into each Participant PDA.
     // Validate every PDA before writing — the VRF oracle constructs
@@ -112,7 +112,13 @@ fn compute_shares(
     // Use 3 bytes per participant → supports up to 10 (3*10=30 < 32).
     // For n > 10, fall back to 2-byte chunks (supports up to 16).
     // MVP caps at 20 participants so we use 1-byte chunks as fallback.
-    let bytes_per = if n <= 10 { 3 } else if n <= 16 { 2 } else { 1 };
+    let bytes_per = if n <= 10 {
+        3
+    } else if n <= 16 {
+        2
+    } else {
+        1
+    };
 
     let raw: Vec<u64> = (0..n)
         .map(|i| {
@@ -134,10 +140,7 @@ fn compute_shares(
     let mut shares: Vec<u64> = raw
         .iter()
         .map(|&w| {
-            let s = (w as u128)
-                .checked_mul(total as u128)
-                .unwrap_or(u128::MAX)
-                / raw_sum as u128;
+            let s = (w as u128).checked_mul(total as u128).unwrap_or(u128::MAX) / raw_sum as u128;
             (s as u64).clamp(min_share, max_share)
         })
         .collect();

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(anchor *)",
+      "Bash(rustup *)",
+      "Bash(cargo *)",
+      "Bash(~/.rustup/toolchains/solana/bin/cargo *)",
+      "Bash(~/.rustup/toolchains/1.89.0-sbpf-solana-v1.53/bin/cargo *)",
+      "Bash(file *)",
+      "Bash(solana *)",
+      "Bash(~/.local/share/solana/install/active_release/bin/cargo-build-sbf)",
+      "Bash(rm *)",
+      "Bash(solana-install *)",
+      "Bash(\"$(curl -ssfl https://release.anza.xyz/stable/install)\" *)"
+    ]
+  },
+  "$version": 3
+}

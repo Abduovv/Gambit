@@ -61,4 +61,12 @@ pub enum ErrorCode {
     WrongParticipantCount,
     #[msg("Invalid participant PDA in remaining accounts")]
     InvalidParticipantPda,
+
+    // USDT / Token accounts
+    #[msg("Invalid token account")]
+    InvalidTokenAccount,
+    #[msg("Invalid vault token account")]
+    InvalidVault,
+    #[msg("Token mint does not match vault mint")]
+    MintMismatch,
 }

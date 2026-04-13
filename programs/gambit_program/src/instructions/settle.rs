@@ -1,8 +1,11 @@
-use anchor_lang::prelude::*;
-use anchor_lang::system_program::{transfer, Transfer};
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::state::{Session, Escrow, Receipt};
+use crate::state::{Receipt, Session};
+use anchor_lang::prelude::*;
+use anchor_spl::token::{
+    close_account as spl_close_account, transfer as spl_transfer, CloseAccount as SplCloseAccount,
+    Token, TokenAccount, Transfer as SplTransfer,
+};
 
 /// Anyone can call settle once all participants have paid (state = SETTLING).
 /// This keeps the UX clean — no one has to wait for the host specifically.
@@ -19,21 +22,20 @@ pub struct Settle<'info> {
     )]
     pub session: Account<'info, Session>,
 
+    /// The token account owned by the Session PDA holding collected USDT.
+    /// Validated by pubkey stored in Session — prevents rogue vault attack.
     #[account(
         mut,
-        seeds = [ESCROW_SEED, session.key().as_ref()],
-        bump = escrow.bump,
-        has_one = session @ ErrorCode::InvalidParticipantPda,
+        constraint = usdt_vault.key() == session.usdt_vault @ ErrorCode::InvalidVault,
     )]
-    pub escrow: Account<'info, Escrow>,
+    pub usdt_vault: Account<'info, TokenAccount>,
 
-    /// Host receives all collected lamports
-    /// CHECK: We validate this matches session.host below
+    /// Recipient receives all collected USDT
     #[account(
         mut,
-        constraint = host.key() == session.host @ ErrorCode::NotHost,
+        constraint = recipient_token_account.key() == session.recipient_token_account @ ErrorCode::InvalidTokenAccount,
     )]
-    pub host: SystemAccount<'info>,
+    pub recipient_token_account: Account<'info, TokenAccount>,
 
     #[account(
         init,
@@ -45,6 +47,7 @@ pub struct Settle<'info> {
     pub receipt: Account<'info, Receipt>,
 
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 pub fn handler(ctx: Context<Settle>) -> Result<()> {
@@ -55,34 +58,35 @@ pub fn handler(ctx: Context<Settle>) -> Result<()> {
         ErrorCode::NotAllPaid
     );
 
-    let collected = ctx.accounts.escrow.total_collected;
+    let collected = session.total_collected;
+    require!(collected > 0, ErrorCode::WrongAmount);
 
-    // Drain escrow → host via PDA-signed transfer
-    let session_key = ctx.accounts.session.key();
-    let escrow_seeds = &[
-        ESCROW_SEED,
-        session_key.as_ref(),
-        &[ctx.accounts.escrow.bump],
+    // Transfer USDT from vault → recipient via PDA-signed CPI
+    let session_seeds = &[
+        SESSION_SEED,
+        &session.session_id,
+        session.host.as_ref(),
+        &[session.bump],
     ];
-    let signer = &[&escrow_seeds[..]];
+    let signer = &[&session_seeds[..]];
 
     let cpi_ctx = CpiContext::new_with_signer(
-        ctx.accounts.system_program.key(),
-        Transfer {
-            from: ctx.accounts.escrow.to_account_info(),
-            to: ctx.accounts.host.to_account_info(),
+        anchor_spl::token::ID,
+        SplTransfer {
+            from: ctx.accounts.usdt_vault.to_account_info(),
+            to: ctx.accounts.recipient_token_account.to_account_info(),
+            authority: ctx.accounts.session.to_account_info(),
         },
         signer,
     );
-    transfer(cpi_ctx, collected)?;
+    spl_transfer(cpi_ctx, collected)?;
 
     // Write the permanent Receipt
     let clock = Clock::get()?;
-    let session = &ctx.accounts.session;
     ctx.accounts.receipt.set_inner(Receipt {
         session_id: session.session_id,
         host: session.host,
-        total_lamports: session.total_lamports,
+        total_usdt: session.total_usdt,
         participant_count: session.participant_count,
         settled_at: clock.unix_timestamp,
         fairness_alpha: session.fairness_alpha,
@@ -90,29 +94,27 @@ pub fn handler(ctx: Context<Settle>) -> Result<()> {
         bump: ctx.bumps.receipt,
     });
 
-    // Mark settled — session and escrow are closed by Anchor via
-    // the `close` constraint on the respective accounts.
-    // NOTE: Session + Escrow close constraints are handled at the
-    // account level. Since we need to read session data above,
-    // we close them by zeroing lamports here instead.
-    let session_info = ctx.accounts.session.to_account_info();
-    let escrow_info = ctx.accounts.escrow.to_account_info();
-    let host_info = ctx.accounts.host.to_account_info();
+    // Close vault token account → rent returns to caller
+    let close_vault_ctx = CpiContext::new_with_signer(
+        anchor_spl::token::ID,
+        SplCloseAccount {
+            account: ctx.accounts.usdt_vault.to_account_info(),
+            destination: ctx.accounts.caller.to_account_info(),
+            authority: ctx.accounts.session.to_account_info(),
+        },
+        signer,
+    );
+    spl_close_account(close_vault_ctx)?;
 
-    // Return Session rent to host
+    // Close Session account → rent returns to caller
+    let session_info = ctx.accounts.session.to_account_info();
     let session_lamports = session_info.lamports();
     **session_info.lamports.borrow_mut() = 0;
-    **host_info.lamports.borrow_mut() = host_info
+    **ctx.accounts.caller.to_account_info().lamports.borrow_mut() = ctx
+        .accounts
+        .caller
         .lamports()
         .checked_add(session_lamports)
-        .ok_or(ErrorCode::Overflow)?;
-
-    // Return Escrow rent to host (balance should be 0 after transfer, just rent)
-    let escrow_lamports = escrow_info.lamports();
-    **escrow_info.lamports.borrow_mut() = 0;
-    **host_info.lamports.borrow_mut() = host_info
-        .lamports()
-        .checked_add(escrow_lamports)
         .ok_or(ErrorCode::Overflow)?;
 
     Ok(())

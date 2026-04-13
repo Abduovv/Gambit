@@ -10,22 +10,30 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("FEmkNeM8Ws2mRpXPLhQmpbXoGUpr3qM7f8d7hJGh41Ez");
+declare_id!("FQ5kXdKmsqRhvjR6txthtN7NHHhZ9bLGy7QhjRHJh3xq");
 
 #[program]
 pub mod gambit_program {
     use super::*;
 
     /// Host creates a new bill-split session.
-    /// Produces: Session PDA + Escrow PDA.
+    /// Produces: Session PDA + USDT Vault PDA.
     pub fn initialize_session(
         ctx: Context<InitializeSession>,
         session_id: [u8; 6],
-        total_lamports: u64,
+        total_usdt: u64,
         fairness_alpha: u8,
         max_participants: u8,
+        recipient_token_account: Pubkey,
     ) -> Result<()> {
-        initialize_session::handler(ctx, session_id, total_lamports, fairness_alpha, max_participants)
+        initialize_session::handler(
+            ctx,
+            session_id,
+            total_usdt,
+            fairness_alpha,
+            max_participants,
+            recipient_token_account,
+        )
     }
 
     /// Participant joins an open session.
@@ -58,22 +66,19 @@ pub mod gambit_program {
     /// State: REVEALING → PAYING.
     ///
     /// remaining_accounts: all Participant PDAs for the session (any order).
-    pub fn consume_randomness(
-        ctx: Context<ConsumeRandomness>,
-        randomness: [u8; 32],
-    ) -> Result<()> {
+    pub fn consume_randomness(ctx: Context<ConsumeRandomness>, randomness: [u8; 32]) -> Result<()> {
         consume_randomness::handler(ctx, randomness)
     }
 
-    /// Participant pays their exact share — SOL → Escrow PDA.
+    /// Participant pays their exact share — USDT → Vault PDA.
     /// Validated on-chain: amount must equal participant.amount_due exactly.
     /// Auto-advances to SETTLING when all have paid.
     pub fn deposit_share(ctx: Context<DepositShare>) -> Result<()> {
         deposit_share::handler(ctx)
     }
 
-    /// Settle the session — drains escrow to host, creates Receipt PDA,
-    /// closes Session + Escrow. Anyone can call once state = SETTLING.
+    /// Settle the session — drains USDT vault to recipient, creates Receipt PDA,
+    /// closes Session + UsdtVault. Anyone can call once state = SETTLING.
     pub fn settle(ctx: Context<Settle>) -> Result<()> {
         settle::handler(ctx)
     }

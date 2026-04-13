@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-gambit_program = "FEmkNeM8Ws2mRpXPLhQmpbXoGUpr3qM7f8d7hJGh41Ez"
+gambit_program = "FQ5kXdKmsqRhvjR6txthtN7NHHhZ9bLGy7QhjRHJh3xq"
 
 [provider]
 cluster = "localnet"

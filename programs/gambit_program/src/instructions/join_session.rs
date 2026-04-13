@@ -1,7 +1,7 @@
-use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::state::{Session, Participant};
+use crate::state::{Participant, Session};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct JoinSession<'info> {
@@ -62,15 +62,18 @@ pub fn handler(ctx: Context<JoinSession>, display_name: String) -> Result<()> {
         .checked_add(1)
         .ok_or(ErrorCode::Overflow)?;
 
+    
     let participant = &mut ctx.accounts.participant;
-    participant.session = ctx.accounts.session.key();
-    participant.wallet = ctx.accounts.participant_wallet.key();
-    participant.display_name = name;
-    participant.amount_due = 0;
-    participant.amount_paid = 0;
-    participant.confirmed_bill = false;
-    participant.join_index = join_index;
-    participant.bump = ctx.bumps.participant;
+    participant.set_inner(Participant {
+        session: ctx.accounts.session.key(),
+        wallet: ctx.accounts.participant_wallet.key(),
+        display_name: name,
+        amount_due: 0,
+        amount_paid: 0,
+        confirmed_bill: false,
+        join_index,
+        bump: ctx.bumps.participant,
+    });
 
     Ok(())
 }

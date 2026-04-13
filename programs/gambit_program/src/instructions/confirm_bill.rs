@@ -1,7 +1,7 @@
-use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::state::{Session, Participant};
+use crate::state::{Participant, Session};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct ConfirmBill<'info> {
@@ -32,7 +32,10 @@ pub fn handler(ctx: Context<ConfirmBill>) -> Result<()> {
     require!(!participant.confirmed_bill, ErrorCode::AlreadyConfirmed);
 
     // Must be LOCKED state
-    require!(ctx.accounts.session.state == STATE_LOCKED, ErrorCode::NotLocked);
+    require!(
+        ctx.accounts.session.state == STATE_LOCKED,
+        ErrorCode::NotLocked
+    );
 
     participant.confirmed_bill = true;
 
