@@ -1,4 +1,4 @@
-# Gambit — SplitRoulette
+# Gambit
 
 Social bill splitting on Solana.
 
