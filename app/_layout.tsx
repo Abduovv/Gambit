@@ -6,8 +6,10 @@ import { AppProviders } from '@/components/app-providers'
 export default function RootLayout() {
   return (
     <AppProviders>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="create/index" />
+        <Stack.Screen name="game" />
       </Stack>
       <StatusBar style="auto" />
     </AppProviders>

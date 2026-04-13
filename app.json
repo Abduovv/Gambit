@@ -39,7 +39,13 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Gambit to access your camera to scan QR codes for recipient addresses."
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true,

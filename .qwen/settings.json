@@ -11,7 +11,22 @@
       "Bash(~/.local/share/solana/install/active_release/bin/cargo-build-sbf)",
       "Bash(rm *)",
       "Bash(solana-install *)",
-      "Bash(\"$(curl -ssfl https://release.anza.xyz/stable/install)\" *)"
+      "Bash(\"$(curl -ssfl https://release.anza.xyz/stable/install)\" *)",
+      "Bash(mkdir *)",
+      "Bash(npx *)",
+      "Bash(npm install)",
+      "Bash(npm ls *)",
+      "Bash(adb *)",
+      "Bash(timeout *)",
+      "Bash(lsof *)",
+      "Bash(kill *)",
+      "Bash(sleep *)",
+      "Bash(cd *)",
+      "Bash(echo *)",
+      "Bash(cat *)",
+      "Bash(ip *)",
+      "Bash(curl *)",
+      "Bash(sed *)"
     ]
   },
   "$version": 3
